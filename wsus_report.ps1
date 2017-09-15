@@ -76,7 +76,7 @@ $MsgBody = $MsgBody + "<th>Failed</th>"
 $MsgBody = $MsgBody + "<th>Unknown</th>"
 $MsgBody = $MsgBody + "</tr>"
 
-ForEach ($s in wsuscompgroups("TV Acceptatie")){
+ForEach ($s in wsuscompgroups($WsusComputerGroup)){
     if ($s.CurrentStatus -eq "False"){
         $MsgBody = $MsgBody + " <tr bgcolor='yellow'>"
         $Msghead = '<?php header("Status: 303 See Other"); ?>'
@@ -99,6 +99,7 @@ ForEach ($s in wsuscompgroups("TV Acceptatie")){
 
 $MsgBody = $MsgBody + "</table><br>" # Finish the HTML table.
 
+if ($OutputDir){Remove-Item $OutputDir}
 $Msghead+$MsgBody | Out-File -FilePath $OutputDir
 
 # Nagios return result
