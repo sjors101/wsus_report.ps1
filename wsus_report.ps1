@@ -1,18 +1,29 @@
 # Author: Sjors101 <https://github.com/sjors101/>, 17/08/2017
 # Gathers the node status based on a computergroup, and outputs into html format + nagios check
 #
-# Example: .\wsus_report.ps1
-#
-# * Match the $WsusComputerGroup with the computergroup name you configured in the WSUS GUI.
+# * Match the ComputerGroup with the computergroup name you configured in the WSUS GUI.
 # * Make sure the application can write the output file to the requested location.
+#
+# EXAMPLE: .\wsus_report.ps1 -ComputerGroup 'Production' -OutputFile 'C:\output.html'
+# EXAMPLE with Nagios: .\wsus_report.ps1 -ComputerGroup 'Production' -OutputFile 'C:\output.html' -Nagios True
 #################################################################################################
 
-$WsusComputerGroup = "All computers"
-$OutputDir = "C:\Scripts\healthcheck_wsus\index.html"
+# Check input
+Param ( [string]$ComputerGroup, [string]$OutputFile, [string]$Nagios )
 
-################################# No need to edit below this line ###############################
+IF([string]::IsNullOrWhiteSpace($ComputerGroup)) {            
+    Write-Host "WARN: Missing ComputerGroup.`n`n EXAMPLE: .\wsus_report.ps1 -ComputerGroup 'Production' -OutputFile 'C:\output.html'"
+    exit 2
+}
+IF([string]::IsNullOrWhiteSpace($OutputFile)) {            
+    Write-Host "WARN: Missing OutputFile. `n`n EXAMPLE: .\wsus_report.ps1 -ComputerGroup 'Production' -OutputFile 'C:\output.html'"
+    exit 2
+}
+IF(![string]::IsNullOrWhiteSpace($Nagios)) {            
+    $Nagios = $True     
+}
 
-function wsuscompgroups($Computergroup){
+function wsuscompgroups($WsusComputerGroup){
 
     #Load assemblies
     [void][system.reflection.assembly]::LoadWithPartialName('Microsoft.UpdateServices.Administration')
@@ -22,7 +33,7 @@ function wsuscompgroups($Computergroup){
 
     #Gather only servers from comp group
     $group = $wsus.GetComputerTargetGroups() | foreach {
-        if ($_.Name -eq $Computergroup){
+        if ($_.Name -eq $WsusComputerGroup){
             $_.Id
         }
     } 
@@ -60,6 +71,7 @@ function wsuscompgroups($Computergroup){
     }
     return $log
 }
+
 $Msghead = "<?php header('HTTP/1.0 200 OK'); ?>"
 
 $MsgBody = $MsgBody + "<table border=""1"" cellspacing=""2"" cellpadding=""4"" style=""font-family:Calibri, Candara, Segoe, 'Segoe UI', Optima, Arial, sans-serif"">"
@@ -76,7 +88,7 @@ $MsgBody = $MsgBody + "<th>Failed</th>"
 $MsgBody = $MsgBody + "<th>Unknown</th>"
 $MsgBody = $MsgBody + "</tr>"
 
-ForEach ($s in wsuscompgroups($WsusComputerGroup)){
+ForEach ($s in wsuscompgroups($ComputerGroup)){
     if ($s.CurrentStatus -eq "False"){
         $MsgBody = $MsgBody + " <tr bgcolor='yellow'>"
         $Msghead = '<?php header("Status: 303 See Other"); ?>'
@@ -96,15 +108,18 @@ ForEach ($s in wsuscompgroups($WsusComputerGroup)){
     $MsgBody = $MsgBody + "<td align=""center"" valign=""middle""> " + $s.Unknown +" </td>"
     $MsgBody = $MsgBody + "</tr>" 
 }
-
 $MsgBody = $MsgBody + "</table><br>" # Finish the HTML table.
 
-if ($OutputDir){Remove-Item $OutputDir}
-$Msghead+$MsgBody | Out-File -FilePath $OutputDir
+if (Test-Path $OutputFile){Remove-Item $OutputFile}
+$Msghead+$MsgBody | Out-File -FilePath $OutputFile
 
 # Nagios return result
-if ($args[0]){
-    ForEach ($s in wsuscompgroups($WsusComputerGroup)){
+if ($Nagios){
+    ForEach ($s in wsuscompgroups($ComputerGroup)){
+        if ($s.Count -eq 0){
+            Write-Host "Critical: No hosts found, check computergroup"
+	        exit 2            
+        }
         if ($s.CurrentStatus -eq "False"){
             Write-Host "Warning: A host is missing updates"
 	        exit 1            
