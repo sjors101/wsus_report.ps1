@@ -37,7 +37,7 @@ function wsuscompgroups($WsusComputerGroup){
             $_.Id
         }
     } 
-    $ServersId = @($wsus.GetComputerTargets($computerscope) | Where {
+    $ServersId = @($wsus.GetComputerTargets($computerscope) | Sort -Property FullDomainName | Where {
        $_.ComputerTargetGroupIds -eq $group
     })
    
